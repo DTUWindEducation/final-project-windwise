@@ -67,25 +67,26 @@ def get_data(directory):
     for file in l_nc_files:
         # Load the NetCDF file into a Pandas DataFrame
         df = load_netcdf_to_dataframe(file)
+
         # Extract the variable name from the file name (without the .nc extension)
         variable_name = file.stem
+
         # Store the DataFrame in the dictionary with the variable name as the key
-        wind_data[variable_name] = df
-        break
+        wind_data[variable_name] = df.reset_index()
 
-    # Convert to DataFrame
-    df = wind_data[variable_name].reset_index()
+        # # Convert to DataFrame
+        # df = wind_data[variable_name].reset_index()
 
-    # Assuming 'latitude' and 'longitude' are the coordinates in your dataset
-    locations = df[['latitude', 'longitude']].drop_duplicates()
+        # Assuming 'latitude' and 'longitude' are the coordinates in your dataset
+        locations = wind_data[variable_name][['latitude', 'longitude']].drop_duplicates()
 
-    # Dictionary to hold DataFrames for each location
-    location_dfs = {}
+        # Dictionary to hold DataFrames for each location
+        location_dfs = {}
 
-    for index, location in locations.iterrows():
-        lat, lon = location['latitude'], location['longitude']
-        location_key = f"Location_{lat}_{lon}"
-        location_df = df[(df['latitude'] == lat) & (df['longitude'] == lon)]
-        location_dfs[location_key] = location_df
+        for index, location in locations.iterrows():
+            lat, lon = location['latitude'], location['longitude']
+            location_key = f"Location_{lat}_{lon}"
+            location_df = df[(df['latitude'] == lat) & (df['longitude'] == lon)]
+            location_dfs[location_key] = location_df
     
     return location_dfs
