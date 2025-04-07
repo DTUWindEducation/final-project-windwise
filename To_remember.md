@@ -1,5 +1,7 @@
 it is needed to install xarray, netCDF4, h5netcdf to read .nc file
 
+State the order of the positions of the points so that tha class interpolation works
+
 SAVE, COMMIT, PUSH, MERGE COMMANDS:
 
 - First save all files, the:
