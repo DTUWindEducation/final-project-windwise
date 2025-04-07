@@ -146,22 +146,84 @@ class wind_interpolation(object):
         self.wind_data = wind_data
         self.locations= list(wind_data.keys())
 
-    def speed_interpolator(self, x, y, t):
+    def speed_interpolator(self, x, y):
 
-        Q11 = self.wind_data[self.locations[0]].iloc[t]['wind_speed_10m']
-        Q12 = self.wind_data[self.locations[1]].iloc[t]['wind_speed_10m']
-        Q21 = self.wind_data[self.locations[2]].iloc[t]['wind_speed_10m']
-        Q22 = self.wind_data[self.locations[3]].iloc[t]['wind_speed_10m']
+        Q11 = self.wind_data[self.locations[0]]['wind_speed_10m']
+        Q12 = self.wind_data[self.locations[1]]['wind_speed_10m']
+        Q21 = self.wind_data[self.locations[2]]['wind_speed_10m']
+        Q22 = self.wind_data[self.locations[3]]['wind_speed_10m']
 
-        x1 = self.locations[0][0]
-        x2 = self.locations[2][0]
-        y1 = self.locations[0][1]
-        y2 = self.locations[1][1]
+        x1 = np.array([self.locations[0][0]] * len(Q11))
+        x2 = np.array([self.locations[2][0]] * len(Q12))
+        y1 = np.array([self.locations[0][1]] * len(Q21))
+        y2 = np.array([self.locations[1][1]] * len(Q22))
+
+        x = np.array([x] * len(Q11))
+        y = np.array([y] * len(Q12))        
 
         value = (Q11 * (x2 - x) * (y2 - y) +
             Q21 * (x - x1) * (y2 - y) +
             Q12 * (x2 - x) * (y - y1) +
             Q22 * (x - x1) * (y - y1)) / ((x2 - x1) * (y2 - y1))
         
-        return value
+        location = pd.DataFrame()
+        location['valid_time'] = self.wind_data[self.locations[0]]['valid_time']
+        location['longitude'] = x
+        location['latitude'] = y
+        location['wind_speed_10m'] = value
+        
+        return location
 
+    def direction_interpolator(self, x, y):
+            """
+            Interpolate wind direction at the point (x, y) within the square.
+
+            :param x: X-coordinate of the point
+            :param y: Y-coordinate of the point
+            :return: DataFrame with interpolated wind directions over time
+            """
+            D11 = self.wind_data[self.locations[0]]['wind_direction_10m']
+            D12 = self.wind_data[self.locations[1]]['wind_direction_10m']
+            D21 = self.wind_data[self.locations[2]]['wind_direction_10m']
+            D22 = self.wind_data[self.locations[3]]['wind_direction_10m']
+
+            x1 = np.array([self.locations[0][0]] * len(D11))
+            x2 = np.array([self.locations[2][0]] * len(D12))
+            y1 = np.array([self.locations[0][1]] * len(D21))
+            y2 = np.array([self.locations[1][1]] * len(D22))
+
+            x = np.array([x] * len(D11))
+            y = np.array([y] * len(D12))
+
+            # Convert directions to Cartesian coordinates
+            sin_D11, cos_D11 = np.sin(np.radians(D11)), np.cos(np.radians(D11))
+            sin_D21, cos_D21 = np.sin(np.radians(D21)), np.cos(np.radians(D21))
+            sin_D12, cos_D12 = np.sin(np.radians(D12)), np.cos(np.radians(D12))
+            sin_D22, cos_D22 = np.sin(np.radians(D22)), np.cos(np.radians(D22))
+
+            # Interpolate the Cartesian components
+            sin_interp = (
+                sin_D11 * (x2 - x) * (y2 - y) +
+                sin_D21 * (x - x1) * (y2 - y) +
+                sin_D12 * (x2 - x) * (y - y1) +
+                sin_D22 * (x - x1) * (y - y1)
+            ) / ((x2 - x1) * (y2 - y1))
+
+            cos_interp = (
+                cos_D11 * (x2 - x) * (y2 - y) +
+                cos_D21 * (x - x1) * (y2 - y) +
+                cos_D12 * (x2 - x) * (y - y1) +
+                cos_D22 * (x - x1) * (y - y1)
+            ) / ((x2 - x1) * (y2 - y1))
+
+            # Convert back to polar coordinates
+            interpolated_direction = np.degrees(np.arctan2(sin_interp, cos_interp))
+            interpolated_direction[interpolated_direction < 0] += 360
+
+            location = pd.DataFrame()
+            location['valid_time'] = self.wind_data[self.locations[0]]['valid_time']
+            location['longitude'] = x
+            location['latitude'] = y
+            location['wind_direction_10m'] = interpolated_direction
+
+            return location

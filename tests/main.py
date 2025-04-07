@@ -22,6 +22,9 @@ for label in wind_data.keys():
 
 interpolator = src.wind_interpolation(wind_data_processed)
 
-test = interpolator.speed_interpolator(x=8, y=55.625, t=2)
+test1 = interpolator.speed_interpolator(x=8, y=55.625)
+
+
+test2 = interpolator.direction_interpolator(x=8, y=55.625)
 
 

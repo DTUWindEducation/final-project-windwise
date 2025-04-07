@@ -6,6 +6,7 @@ SAVE, COMMIT, PUSH, MERGE COMMANDS:
 
 - First save all files, the:
 
+git add .
 git branch
 (git checkout if needed)
 git commit -m"meaningfull comment"
@@ -16,5 +17,5 @@ git push
 git fetch origin
 git chechout main
 git merge your_branch
-git pish origin main
+git push origin main
 
