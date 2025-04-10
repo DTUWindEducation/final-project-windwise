@@ -1,3 +1,4 @@
+#%% Data
 import src
 from pathlib import Path
 import pandas as pd
@@ -20,11 +21,17 @@ for label in wind_data.keys():
     wind_data_processed[label] = src.compute_wdir_time_series(wind_data_processed[label], u='u10', v='v10', height=10)
 
 
+#%% Interpolation wind speed and direction for location within square
 interpolator = src.wind_interpolation(wind_data_processed)
 
 test1 = interpolator.speed_interpolator(x=8, y=55.625)
 
 
 test2 = interpolator.direction_interpolator(x=8, y=55.625)
+
+#%%  Wind speed at given height using power law
+
+#wind_data_target_U_at_z = src.compute_wind_speed_power_law(wind_data_processed[(8.0, 55.5)], U1 = "wind_speed_10m", )
+
 
 

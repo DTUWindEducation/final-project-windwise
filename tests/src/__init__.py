@@ -227,3 +227,15 @@ class wind_interpolation(object):
             location['wind_direction_10m'] = interpolated_direction
 
             return location
+
+def compute_wind_speed_power_law(wind_data, U1, U2, z1, z2, height):
+
+    U1 = wind_data[U1]
+    U2 = wind_data[U2]
+    z = height
+    
+    wind_data['alpha'] = (np.log(U2/U1))/(np.log(z2/z1))
+
+    wind_data[f'U_at_{height}_m'] = U2((z/z2)**wind_data['alpha'])
+
+    return wind_data
