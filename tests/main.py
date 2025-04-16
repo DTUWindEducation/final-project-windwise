@@ -17,8 +17,12 @@ for label in wind_data.keys():
     wind_data_processed[label] = pd.DataFrame()
 
     # Adding columns for wind speed and wind direction
+
+    # Deberíamos u y v como argumento opcional?
     wind_data_processed[label] = src.compute_ws_time_series(wind_data[label], u='u10', v='v10', height=10)
     wind_data_processed[label] = src.compute_wdir_time_series(wind_data_processed[label], u='u10', v='v10', height=10)
+    wind_data_processed[label] = src.compute_ws_time_series(wind_data_processed[label], u='u100', v='v100', height=100)
+    wind_data_processed[label] = src.compute_wdir_time_series(wind_data_processed[label], u='u100', v='v100', height=100)
 
 
 #%% Interpolation wind speed and direction for location within square

@@ -230,6 +230,13 @@ class wind_interpolation(object):
 
 def compute_wind_speed_power_law(wind_data, U1, U2, z1, z2, height):
 
+    """
+    Compute wind speed at a given height using the power law.
+    wind_data: DataFrame with wind data for one location.
+    U1: Column name for wind speed at height z1.
+    U2: Column name for wind speed at height z2.
+    """
+
     U1 = wind_data[U1]
     U2 = wind_data[U2]
     z = height
