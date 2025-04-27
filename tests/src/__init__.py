@@ -87,6 +87,60 @@ def get_data(directory):
     
     return wind_data
 
+
+class time_series(object): 
+
+    def __init__(self, wind_data, u_1, v_1, height_1, u_2, v_2, height_2):
+        """
+        Initialize the wind_interpolation class.
+        """        
+        self.wind_data = wind_data
+        self.height_1 = height_1
+        self.height_2 = height_2
+        self.u_1 = u_1
+        self.u_2 = u_2
+        self.v_1 = v_1
+        self.v_2 = v_2
+
+    def compute_ws_time_series(self, cords):
+        """
+        Compute wind speed time series from the wind components.
+
+        Parameters:
+        wind_data (DataFrame): A DataFrame withe the wind data for one location.
+                            The DataFrame should contain columns for the u-component and v-component of wind speed.
+        u (str): The name of the column representing the u-component of wind speed.
+        v (str): The name of the column representing the v-component of wind speed.
+        height (int): The height at which the wind speed is measured.
+
+        Returns:
+        dict: A DataFrame equivalent to the input one, with a new column wind the wind speed timeseries.
+        """
+        wind_data_df = self.wind_data[cords]
+
+        u_data = wind_data_df[self.u_1]
+        v_data = wind_data_df[self.v_1]
+
+        # Compute wind speed using the formula: ws = sqrt(u^2 + v^2)
+        ws_data = (u_data**2 + v_data**2)**0.5
+
+        wind_data_df[f'wind_speed_{self.height_1}m'] = ws_data
+
+        u_data = wind_data_df[self.u_2]
+        v_data = wind_data_df[self.v_2]
+
+        # Compute wind speed using the formula: ws = sqrt(u^2 + v^2)
+        ws_data = (u_data**2 + v_data**2)**0.5
+
+        wind_data_df[f'wind_speed_{self.height_2}m'] = ws_data        
+
+        return wind_data_df
+
+
+
+
+#####
+
 def compute_ws_time_series(wind_data, u, v, height):
     """
     Compute wind speed time series from the wind components.
@@ -171,6 +225,26 @@ class wind_interpolation(object):
         location['longitude'] = x
         location['latitude'] = y
         location['wind_speed_10m'] = value
+
+        Q11 = self.wind_data[self.locations[0]]['wind_speed_100m']
+        Q12 = self.wind_data[self.locations[1]]['wind_speed_100m']
+        Q21 = self.wind_data[self.locations[2]]['wind_speed_100m']
+        Q22 = self.wind_data[self.locations[3]]['wind_speed_100m']
+
+        x1 = np.array([self.locations[0][0]] * len(Q11))
+        x2 = np.array([self.locations[2][0]] * len(Q12))
+        y1 = np.array([self.locations[0][1]] * len(Q21))
+        y2 = np.array([self.locations[1][1]] * len(Q22))
+
+        x = np.array([x] * len(Q11))
+        y = np.array([y] * len(Q12))        
+
+        value = (Q11 * (x2 - x) * (y2 - y) +
+            Q21 * (x - x1) * (y2 - y) +
+            Q12 * (x2 - x) * (y - y1) +
+            Q22 * (x - x1) * (y - y1)) / ((x2 - x1) * (y2 - y1))
+        
+        location['wind_speed_100m'] = value
         
         return location
 
@@ -226,6 +300,46 @@ class wind_interpolation(object):
             location['latitude'] = y
             location['wind_direction_10m'] = interpolated_direction
 
+            D11 = self.wind_data[self.locations[0]]['wind_direction_100m']
+            D12 = self.wind_data[self.locations[1]]['wind_direction_100m']
+            D21 = self.wind_data[self.locations[2]]['wind_direction_100m']
+            D22 = self.wind_data[self.locations[3]]['wind_direction_100m']
+
+            x1 = np.array([self.locations[0][0]] * len(D11))
+            x2 = np.array([self.locations[2][0]] * len(D12))
+            y1 = np.array([self.locations[0][1]] * len(D21))
+            y2 = np.array([self.locations[1][1]] * len(D22))
+
+            x = np.array([x] * len(D11))
+            y = np.array([y] * len(D12))
+
+            # Convert directions to Cartesian coordinates
+            sin_D11, cos_D11 = np.sin(np.radians(D11)), np.cos(np.radians(D11))
+            sin_D21, cos_D21 = np.sin(np.radians(D21)), np.cos(np.radians(D21))
+            sin_D12, cos_D12 = np.sin(np.radians(D12)), np.cos(np.radians(D12))
+            sin_D22, cos_D22 = np.sin(np.radians(D22)), np.cos(np.radians(D22))
+
+            # Interpolate the Cartesian components
+            sin_interp = (
+                sin_D11 * (x2 - x) * (y2 - y) +
+                sin_D21 * (x - x1) * (y2 - y) +
+                sin_D12 * (x2 - x) * (y - y1) +
+                sin_D22 * (x - x1) * (y - y1)
+            ) / ((x2 - x1) * (y2 - y1))
+
+            cos_interp = (
+                cos_D11 * (x2 - x) * (y2 - y) +
+                cos_D21 * (x - x1) * (y2 - y) +
+                cos_D12 * (x2 - x) * (y - y1) +
+                cos_D22 * (x - x1) * (y - y1)
+            ) / ((x2 - x1) * (y2 - y1))
+
+            # Convert back to polar coordinates
+            interpolated_direction = np.degrees(np.arctan2(sin_interp, cos_interp))
+            interpolated_direction[interpolated_direction < 0] += 360
+
+            location['wind_direction_100m'] = interpolated_direction
+
             return location
 
 def compute_wind_speed_power_law(wind_data, U1, U2, z1, z2, height):
@@ -243,6 +357,28 @@ def compute_wind_speed_power_law(wind_data, U1, U2, z1, z2, height):
     
     wind_data['alpha'] = (np.log(U2/U1))/(np.log(z2/z1))
 
-    wind_data[f'U_at_{height}_m'] = U2((z/z2)**wind_data['alpha'])
+    wind_data[f'ws_pl_{height}m'] = U2*((z/z2)**wind_data['alpha'])
 
     return wind_data
+
+
+def gamma_func(k, mu_1, mu_2):
+
+    return gamma(1+1/k)*2/gamma(1+2/k) - (mu_1*2)/mu_2
+
+
+def obtain_weibull(x, y, height, wind_data_processed):
+
+    #obtain time series at the guven location
+    inter = wind_interpolation(wind_data_processed)
+
+    ts = inter.speed_interpolator(x, y)
+
+    ts_at_height = compute_wind_speed_power_law(ts, )
+
+    fst_moment = np.mean(ts)
+    snd_moment = np.mean(ts**2)
+
+    k = fsolve(gamma_func, 2, args=(fst_moment, snd_moment))
+
+    A = fst_moment/gamma(1+1/k)
