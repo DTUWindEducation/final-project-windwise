@@ -1,6 +1,5 @@
-
-import xarray as xr
 from pathlib import Path
+import xarray as xr
 import pandas as pd
 import numpy as np
 from scipy.optimize import fsolve
@@ -22,7 +21,7 @@ def load_netcdf_to_dataframe(file_path):
 
     # Convert the dataset to a Pandas DataFrame
     df = nc_data.to_dataframe()
-    
+
     return df
 
 def collect_nc_files(folder_path):
@@ -47,14 +46,16 @@ def collect_nc_files(folder_path):
 
 def get_data(directory):
     """
-    Load and process all NetCDF (.nc) files from the 'inputs' folder located in the parent directory.
+    Load and process all NetCDF (.nc) files from the 'inputs' folder
+    located in the parent directory.
 
     Parameters:
     directory (Path): A Path object representing the current directory.
 
     Returns:
-    dict: A dictionary where the keys are the file names (without the .nc extension) 
-          and the values are Pandas DataFrames containing the data from the corresponding NetCDF files.
+    dict: A dictionary where the keys are tuples of latitude and longitude
+          coordinates, and the values are DataFrames containing wind data
+          for those coordinates.
     """
     # Navigate to the parent directory and then to the 'inputs' folder
     inputs_path = directory.parent / 'inputs'
@@ -64,14 +65,16 @@ def get_data(directory):
 
     # Initialize an empty dictionary to store the data
     wind_data = {}
+
+    # Load the first .nc file to get the coordinates
     df = load_netcdf_to_dataframe(l_nc_files[0])
     df = df.reset_index()
     locations = df[['latitude', 'longitude']].drop_duplicates()
 
     # Initialize empty DataFrames for each location using coordinates as keys
-    for index, location in locations.iterrows():
-        lat, lon = location['latitude'], location['longitude']
-        location_key = tuple((lat,lon))
+    for location in locations.itertuples():
+        lat, lon = location.latitude, location.longitude
+        location_key = (lat, lon)
         wind_data[location_key] = pd.DataFrame()
 
     # Iterate through each .nc file
@@ -82,11 +85,12 @@ def get_data(directory):
         # Convert to DataFrame
         df = df.reset_index()
 
-        for index, location in locations.iterrows():
-            lat, lon = location['latitude'], location['longitude']
-            location_key = f"Location_{lat}_{lon}"
-            location_df = df[(df['latitude'] == lat) & (df['longitude'] == lon)]
-            wind_data[(lat,lon)]=pd.concat([wind_data[(lat,lon)],location_df], ignore_index=True)
+    # Create a dataframe for each of the locations
+    for location in locations.itertuples():
+        lat, lon = location.latitude, location.longitude
+        location_key = f"Location_{lat}_{lon}"
+        location_df = df[(df['latitude'] == lat) & (df['longitude'] == lon)]
+        wind_data[(lat, lon)] = pd.concat([wind_data[(lat, lon)], location_df], ignore_index=True)
     
     return wind_data
 
@@ -96,6 +100,15 @@ class time_series(object):
     def __init__(self, wind_data, u_1, v_1, height_1, u_2, v_2, height_2):
         """
         Initialize the wind_interpolation class.
+
+        Parameters:
+        wind_data (dict): Dictionary containing wind data for different locations.
+        u_1 (str): Name of the u-component of wind at height 1.
+        v_1 (str): Name of the v-component of wind at height 1.
+        height_1 (int): Height 1 in meters.
+        u_2 (str): Name of the u-component of wind at height 2.
+        v_2 (str): Name of the v-component of wind at height 2.
+        height_2 (int): Height 2 in meters.
         """        
         self.wind_data = wind_data
         self.height_1 = height_1
@@ -107,11 +120,17 @@ class time_series(object):
 
     def compute_ws_time_series(self, cords):
         """
-        Compute wind speed time series from the wind components.
+        Compute wind speed time series from the wind components at the specified position.
 
+        Parameters:
+        cords (tuple): Tuple containing the latitude and longitude coordinates.
+
+        Returns:
+        pd.DataFrame: DataFrame containing the wind speed time series for the specified coordinates.
         """
         wind_data_df = self.wind_data[cords]
 
+        # Extract the u and v components of wind at the specified heights
         u_data = wind_data_df[self.u_1]
         v_data = wind_data_df[self.v_1]
 
@@ -120,13 +139,14 @@ class time_series(object):
 
         wind_data_df[f'wind_speed_{self.height_1}m'] = ws_data
 
+        # Extract the u and v components of wind at the specified heights
         u_data = wind_data_df[self.u_2]
         v_data = wind_data_df[self.v_2]
 
         # Compute wind speed using the formula: ws = sqrt(u^2 + v^2)
         ws_data = (u_data**2 + v_data**2)**0.5
 
-        wind_data_df[f'wind_speed_{self.height_2}m'] = ws_data        
+        wind_data_df[f'wind_speed_{self.height_2}m'] = ws_data
 
         return wind_data_df
     
@@ -134,21 +154,29 @@ class time_series(object):
         """
         Compute wind direction time series from the wind components.
 
-    
+        Parameters:
+        cords (tuple): Tuple containing the latitude and longitude coordinates.
+
+        Returns:
+        pd.DataFrame: DataFrame containing the wind direction time series for the specified coordinates.   
         """
-        
+
         wind_data_df = self.wind_data[cords]
 
+        # Extract the u and v components of wind at the specified heights
         u_data = wind_data_df[self.u_1]
         v_data = wind_data_df[self.v_1]
 
+        # Compute wind direction using the formula: wdir = atan2(-u, -v)
         wdir_data = np.mod(np.degrees(np.arctan2(-u_data, -v_data)),360)
 
         wind_data_df[f'wind_direction_{self.height_1}m'] = wdir_data
 
+        # Extract the u and v components of wind at the specified heights
         u_data = wind_data_df[self.u_2]
         v_data = wind_data_df[self.v_2]
 
+        # Compute wind direction using the formula: wdir = atan2(-u, -v)
         wdir_data = np.mod(np.degrees(np.arctan2(-u_data, -v_data)),360)
 
         wind_data_df[f'wind_direction_{self.height_2}m'] = wdir_data
@@ -156,165 +184,198 @@ class time_series(object):
         return wind_data_df
 
 
-
-
 class wind_interpolation(object): 
 
     def __init__(self, wind_data):
         """
         Initialize the wind_interpolation class.
-        """        
+
+        Parameters:
+        wind_data (dict): Dictionary containing wind data for different locations.
+        """
+
         self.wind_data = wind_data
         self.locations= list(wind_data.keys())
 
     def speed_interpolator(self, x_coord, y_coord):
 
+        """
+        Interpolate wind speed at the point (x, y) within the square.
+
+        Parameters:
+        x_coord: X-coordinate of the point
+        y_coord: Y-coordinate of the point
+
+        Returns:
+        pd.DataFrame: DataFrame with interpolated wind speeds over time
+        """
+
         lat = x_coord
         lon = y_coord
 
+        # Extract wind speed data for the four corners of the square
         Q11 = self.wind_data[self.locations[0]]['wind_speed_10m']
         Q12 = self.wind_data[self.locations[1]]['wind_speed_10m']
         Q21 = self.wind_data[self.locations[2]]['wind_speed_10m']
         Q22 = self.wind_data[self.locations[3]]['wind_speed_10m']
 
+        # Create arrays for the x and y coordinates of the corners
         x1 = np.array([self.locations[0][0]] * len(Q11))
         x2 = np.array([self.locations[2][0]] * len(Q12))
         y1 = np.array([self.locations[0][1]] * len(Q21))
         y2 = np.array([self.locations[1][1]] * len(Q22))
 
+        # Create arrays for the x and y coordinates of the point to be interpolated
         x = np.array([lat] * len(Q11))
         y = np.array([lon] * len(Q12))        
 
+        # Perform bilinear interpolation
         value = (Q11 * (x2 - x) * (y2 - y) +
             Q21 * (x - x1) * (y2 - y) +
             Q12 * (x2 - x) * (y - y1) +
             Q22 * (x - x1) * (y - y1)) / ((x2 - x1) * (y2 - y1))
         
+        # Create a DataFrame to store the interpolated values
         location = pd.DataFrame()
         location['valid_time'] = self.wind_data[self.locations[0]]['valid_time']
         location['longitude'] = x
         location['latitude'] = y
         location['wind_speed_10m'] = value
 
+        # Extract wind speed data for the four corners of the square
         Q11 = self.wind_data[self.locations[0]]['wind_speed_100m']
         Q12 = self.wind_data[self.locations[1]]['wind_speed_100m']
         Q21 = self.wind_data[self.locations[2]]['wind_speed_100m']
         Q22 = self.wind_data[self.locations[3]]['wind_speed_100m']
 
+        # Create arrays for the x and y coordinates of the corners
         x1 = np.array([self.locations[0][0]] * len(Q11))
         x2 = np.array([self.locations[2][0]] * len(Q12))
         y1 = np.array([self.locations[0][1]] * len(Q21))
         y2 = np.array([self.locations[1][1]] * len(Q22))
 
+        # Create arrays for the x and y coordinates of the point to be interpolated
         x = np.array([lat] * len(Q11))
         y = np.array([lon] * len(Q12))        
 
+        # Perform bilinear interpolation
         value = (Q11 * (x2 - x) * (y2 - y) +
             Q21 * (x - x1) * (y2 - y) +
             Q12 * (x2 - x) * (y - y1) +
             Q22 * (x - x1) * (y - y1)) / ((x2 - x1) * (y2 - y1))
         
+        # Create a DataFrame to store the interpolated values
         location['wind_speed_100m'] = value
         
         return location
 
-    def direction_interpolator(self, x, y):
-            """
-            Interpolate wind direction at the point (x, y) within the square.
+    def direction_interpolator(self, x_coord, y_coord):
+        """
+        Interpolate wind direction at the point (x, y) within the square.
+        
+        Parameters:
+        x_coord: X-coordinate of the point
+        y_coord: Y-coordinate of the point
 
-            :param x: X-coordinate of the point
-            :param y: Y-coordinate of the point
-            :return: DataFrame with interpolated wind directions over time
-            """
+        Returns:
+        pd.DataFrame: DataFrame with interpolated wind directions over time
+        """
 
-            lat = x
-            lon = y
+        lat = x_coord
+        lon = y_coord
 
-            D11 = self.wind_data[self.locations[0]]['wind_direction_10m']
-            D12 = self.wind_data[self.locations[1]]['wind_direction_10m']
-            D21 = self.wind_data[self.locations[2]]['wind_direction_10m']
-            D22 = self.wind_data[self.locations[3]]['wind_direction_10m']
+        # Extract wind direction data for the four corners of the square
+        D11 = self.wind_data[self.locations[0]]['wind_direction_10m']
+        D12 = self.wind_data[self.locations[1]]['wind_direction_10m']
+        D21 = self.wind_data[self.locations[2]]['wind_direction_10m']
+        D22 = self.wind_data[self.locations[3]]['wind_direction_10m']
 
-            x1 = np.array([self.locations[0][0]] * len(D11))
-            x2 = np.array([self.locations[2][0]] * len(D12))
-            y1 = np.array([self.locations[0][1]] * len(D21))
-            y2 = np.array([self.locations[1][1]] * len(D22))
+        # Create arrays for the x and y coordinates of the corners
+        x1 = np.array([self.locations[0][0]] * len(D11))
+        x2 = np.array([self.locations[2][0]] * len(D12))
+        y1 = np.array([self.locations[0][1]] * len(D21))
+        y2 = np.array([self.locations[1][1]] * len(D22))
 
-            x = np.array([lat] * len(D11))
-            y = np.array([lon] * len(D12))
+        # Create arrays for the x and y coordinates of the point to be interpolated
+        x = np.array([lat] * len(D11))
+        y = np.array([lon] * len(D12))
 
-            # Convert directions to Cartesian coordinates
-            sin_D11, cos_D11 = np.sin(np.radians(D11)), np.cos(np.radians(D11))
-            sin_D21, cos_D21 = np.sin(np.radians(D21)), np.cos(np.radians(D21))
-            sin_D12, cos_D12 = np.sin(np.radians(D12)), np.cos(np.radians(D12))
-            sin_D22, cos_D22 = np.sin(np.radians(D22)), np.cos(np.radians(D22))
+        # Convert directions to Cartesian coordinates
+        sin_D11, cos_D11 = np.sin(np.radians(D11)), np.cos(np.radians(D11))
+        sin_D21, cos_D21 = np.sin(np.radians(D21)), np.cos(np.radians(D21))
+        sin_D12, cos_D12 = np.sin(np.radians(D12)), np.cos(np.radians(D12))
+        sin_D22, cos_D22 = np.sin(np.radians(D22)), np.cos(np.radians(D22))
 
-            # Interpolate the Cartesian components
-            sin_interp = (
-                sin_D11 * (x2 - x) * (y2 - y) +
-                sin_D21 * (x - x1) * (y2 - y) +
-                sin_D12 * (x2 - x) * (y - y1) +
-                sin_D22 * (x - x1) * (y - y1)
-            ) / ((x2 - x1) * (y2 - y1))
+        # Interpolate the Cartesian components
+        sin_interp = (
+            sin_D11 * (x2 - x) * (y2 - y) +
+            sin_D21 * (x - x1) * (y2 - y) +
+            sin_D12 * (x2 - x) * (y - y1) +
+            sin_D22 * (x - x1) * (y - y1)
+        ) / ((x2 - x1) * (y2 - y1))
 
-            cos_interp = (
-                cos_D11 * (x2 - x) * (y2 - y) +
-                cos_D21 * (x - x1) * (y2 - y) +
-                cos_D12 * (x2 - x) * (y - y1) +
-                cos_D22 * (x - x1) * (y - y1)
-            ) / ((x2 - x1) * (y2 - y1))
+        cos_interp = (
+            cos_D11 * (x2 - x) * (y2 - y) +
+            cos_D21 * (x - x1) * (y2 - y) +
+            cos_D12 * (x2 - x) * (y - y1) +
+            cos_D22 * (x - x1) * (y - y1)
+        ) / ((x2 - x1) * (y2 - y1))
 
-            # Convert back to polar coordinates
-            interpolated_direction = np.degrees(np.arctan2(sin_interp, cos_interp))
-            interpolated_direction[interpolated_direction < 0] += 360
+        # Convert back to polar coordinates
+        interpolated_direction = np.degrees(np.arctan2(sin_interp, cos_interp))
+        interpolated_direction[interpolated_direction < 0] += 360
 
-            location = pd.DataFrame()
-            location['valid_time'] = self.wind_data[self.locations[0]]['valid_time']
-            location['longitude'] = x
-            location['latitude'] = y
-            location['wind_direction_10m'] = interpolated_direction
+        # Create a DataFrame to store the interpolated values
+        location = pd.DataFrame()
+        location['valid_time'] = self.wind_data[self.locations[0]]['valid_time']
+        location['longitude'] = x
+        location['latitude'] = y
+        location['wind_direction_10m'] = interpolated_direction
 
-            D11 = self.wind_data[self.locations[0]]['wind_direction_100m']
-            D12 = self.wind_data[self.locations[1]]['wind_direction_100m']
-            D21 = self.wind_data[self.locations[2]]['wind_direction_100m']
-            D22 = self.wind_data[self.locations[3]]['wind_direction_100m']
+        # Extract wind direction data for the four corners of the square
+        D11 = self.wind_data[self.locations[0]]['wind_direction_100m']
+        D12 = self.wind_data[self.locations[1]]['wind_direction_100m']
+        D21 = self.wind_data[self.locations[2]]['wind_direction_100m']
+        D22 = self.wind_data[self.locations[3]]['wind_direction_100m']
 
-            x1 = np.array([self.locations[0][0]] * len(D11))
-            x2 = np.array([self.locations[2][0]] * len(D12))
-            y1 = np.array([self.locations[0][1]] * len(D21))
-            y2 = np.array([self.locations[1][1]] * len(D22))
+        # Create arrays for the x and y coordinates of the corners
+        x1 = np.array([self.locations[0][0]] * len(D11))
+        x2 = np.array([self.locations[2][0]] * len(D12))
+        y1 = np.array([self.locations[0][1]] * len(D21))
+        y2 = np.array([self.locations[1][1]] * len(D22))
 
-            x = np.array([lat] * len(D11))
-            y = np.array([lon] * len(D12))
+        # Create arrays for the x and y coordinates of the point to be interpolated
+        x = np.array([lat] * len(D11))
+        y = np.array([lon] * len(D12))
 
-            # Convert directions to Cartesian coordinates
-            sin_D11, cos_D11 = np.sin(np.radians(D11)), np.cos(np.radians(D11))
-            sin_D21, cos_D21 = np.sin(np.radians(D21)), np.cos(np.radians(D21))
-            sin_D12, cos_D12 = np.sin(np.radians(D12)), np.cos(np.radians(D12))
-            sin_D22, cos_D22 = np.sin(np.radians(D22)), np.cos(np.radians(D22))
+        # Convert directions to Cartesian coordinates
+        sin_D11, cos_D11 = np.sin(np.radians(D11)), np.cos(np.radians(D11))
+        sin_D21, cos_D21 = np.sin(np.radians(D21)), np.cos(np.radians(D21))
+        sin_D12, cos_D12 = np.sin(np.radians(D12)), np.cos(np.radians(D12))
+        sin_D22, cos_D22 = np.sin(np.radians(D22)), np.cos(np.radians(D22))
 
-            # Interpolate the Cartesian components
-            sin_interp = (
-                sin_D11 * (x2 - x) * (y2 - y) +
-                sin_D21 * (x - x1) * (y2 - y) +
-                sin_D12 * (x2 - x) * (y - y1) +
-                sin_D22 * (x - x1) * (y - y1)
-            ) / ((x2 - x1) * (y2 - y1))
+        # Interpolate the Cartesian components
+        sin_interp = (
+            sin_D11 * (x2 - x) * (y2 - y) +
+            sin_D21 * (x - x1) * (y2 - y) +
+            sin_D12 * (x2 - x) * (y - y1) +
+            sin_D22 * (x - x1) * (y - y1)
+        ) / ((x2 - x1) * (y2 - y1))
 
-            cos_interp = (
-                cos_D11 * (x2 - x) * (y2 - y) +
-                cos_D21 * (x - x1) * (y2 - y) +
-                cos_D12 * (x2 - x) * (y - y1) +
-                cos_D22 * (x - x1) * (y - y1)
-            ) / ((x2 - x1) * (y2 - y1))
+        cos_interp = (
+            cos_D11 * (x2 - x) * (y2 - y) +
+            cos_D21 * (x - x1) * (y2 - y) +
+            cos_D12 * (x2 - x) * (y - y1) +
+            cos_D22 * (x - x1) * (y - y1)
+        ) / ((x2 - x1) * (y2 - y1))
 
-            # Convert back to polar coordinates
-            interpolated_direction = np.degrees(np.arctan2(sin_interp, cos_interp))
-            interpolated_direction[interpolated_direction < 0] += 360
+        # Convert back to polar coordinates
+        interpolated_direction = np.degrees(np.arctan2(sin_interp, cos_interp))
+        interpolated_direction[interpolated_direction < 0] += 360
 
-            location['wind_direction_100m'] = interpolated_direction
+        location['wind_direction_100m'] = interpolated_direction
 
-            return location
+        return location
 
 def compute_wind_speed_power_law(wind_data, height, wd_ts_f):
 
@@ -443,7 +504,8 @@ def obtain_wind_rose(wd, x, y, height, wd_ts_f, n_sector=12):
 
     ts = inter.direction_interpolator(x, y)
 
-    ts_at_height = [np.interp(height, [wd_ts_f.height_1, wd_ts_f.height_2], [ts['wind_direction_10m'].iloc[i], ts['wind_direction_100m'].iloc[i]]) for i in range(len(ts))]
+    # ts_at_height = [np.interp(height, [wd_ts_f.height_1, wd_ts_f.height_2], [ts['wind_direction_10m'].iloc[i], ts['wind_direction_100m'].iloc[i]]) for i in range(len(ts))]
+    ts_at_height = (ts[f"wind_direction_{wd_ts_f.height_2}m"] - ts[f"wind_direction_{wd_ts_f.height_1}m"])/(wd_ts_f.height_2 - wd_ts_f.height_1) * (height - wd_ts_f.height_1) + ts["wind_direction_10m"]
 
     ts[f"wd_at_{height}m"] = ts_at_height
 
