@@ -85,12 +85,12 @@ def get_data(directory):
         # Convert to DataFrame
         df = df.reset_index()
 
-    # Create a dataframe for each of the locations
-    for location in locations.itertuples():
-        lat, lon = location.latitude, location.longitude
-        location_key = f"Location_{lat}_{lon}"
-        location_df = df[(df['latitude'] == lat) & (df['longitude'] == lon)]
-        wind_data[(lat, lon)] = pd.concat([wind_data[(lat, lon)], location_df], ignore_index=True)
+        # Create a dataframe for each of the locations
+        for location in locations.itertuples():
+            lat, lon = location.latitude, location.longitude
+            location_key = f"Location_{lat}_{lon}"
+            location_df = df[(df['latitude'] == lat) & (df['longitude'] == lon)]
+            wind_data[(lat, lon)] = pd.concat([wind_data[(lat, lon)], location_df], ignore_index=True)
     
     return wind_data
 
@@ -237,7 +237,7 @@ class wind_interpolation(object):
         
         # Create a DataFrame to store the interpolated values
         location = pd.DataFrame()
-        location['valid_time'] = self.wind_data[self.locations[0]]['valid_time']
+        location['time'] = self.wind_data[self.locations[0]]['valid_time']
         location['longitude'] = x
         location['latitude'] = y
         location['wind_speed_10m'] = value
@@ -327,7 +327,7 @@ class wind_interpolation(object):
 
         # Create a DataFrame to store the interpolated values
         location = pd.DataFrame()
-        location['valid_time'] = self.wind_data[self.locations[0]]['valid_time']
+        location['time'] = self.wind_data[self.locations[0]]['valid_time']
         location['longitude'] = x
         location['latitude'] = y
         location['wind_direction_10m'] = interpolated_direction
@@ -570,27 +570,27 @@ class turbine(object):
             
             setattr(self, key, turbine_.copy())
 
-        def compute_AEP(self, turbine, lat, lon, wind_data, year, ts_object):
-            """
-            Compute the Annual Energy Production (AEP) for a given turbine and location.
-            """
+    def compute_AEP(self, turbine, lat, lon, wind_data, year, ts_object):
+        """
+        Compute the Annual Energy Production (AEP) for a given turbine and location.
+        """
+        
+        inter = wind_interpolation(wind_data)
+
+        ts = inter.speed_interpolator(lat, lon)
+
+        turbine_ = getattr(self, turbine)
+
+        ts = compute_wind_speed_power_law(ts, turbine_['hub_height'], ts_object)
+
+        print(ts.head())
+
+        ts.set_index('time', inplace=True)
+        ts_year = ts.loc[f'{year}']
+
+        return ts_year
             
-            inter = wind_interpolation(wind_data)
 
-            ts = inter.speed_interpolator(lat, lon)
-
-            turbine_ = getattr(self, turbine, None)
-
-            ts = compute_wind_speed_power_law(ts, turbine_['hub_height'], ts_object)
-
-            ts.set_index('time', inplace=True)
-            ts_year = ts.loc[f'{year}']
-
-            return ts_year
-            
-
-
-
-            
+   
         
 

@@ -44,7 +44,7 @@ turbines = src.load_turbines(directory)
 
 turbine_obj  = src.turbine(turbines, hub_heights)
 
-
+test = turbine_obj.compute_AEP("NREL_Reference_5MW_126", 55.65, 8, wind_data_ts, 1998, wd_ts)
 
 
 # %%
