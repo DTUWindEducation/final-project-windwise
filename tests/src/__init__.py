@@ -432,20 +432,21 @@ class weibull(object):
         return A, k
     
 
-    def get_pdf(self, u_min=0, u_max=25, delta_u=0.1):
+    def get_pdf(self, u_max=25, u_min=0):
         """
 
         """
 
         A, k = self.obtain_parameters()
-        wind_speed = np.arange(u_min, u_max, delta_u)  # Wind speed range from 0 to 30 m/s
 
-        pdf = (k / A) * (wind_speed / A) ** (k-1) * np.exp(-(wind_speed / A)**k)
+        ws_range = np.arange(u_min, u_max, 1)
+
+        pdf = (k / A) * (ws_range / A) ** (k-1) * np.exp(-(ws_range / A)**k)
 
         return pdf
     
     
-    def plot_pdf(self, u_min=0, u_max=25, delta_u=0.1):
+    def plot_pdf(self, u_max=25, u_min=0):
 
         #obtain time series at the guven location
         inter = wind_interpolation(self.wind_data_processed)
@@ -454,12 +455,13 @@ class weibull(object):
 
         ts_at_height = compute_wind_speed_power_law(ts, self.height, self.wd_ts_f)
 
-        p = self.get_pdf()
-        wind_speed = np.arange(u_min, u_max, delta_u)
+        ws_range = np.arange(u_min, u_max, 1)
+
+        p = self.get_pdf(u_max=u_max, u_min=u_min)
 
         plt.figure(figsize=(10, 6))
-        plt.plot(wind_speed, p, label='Weibull PDF', color='blue')
-        plt.hist(ts_at_height[f"ws_pl_{self.height}m"], bins=int(u_max-u_min), density=True, alpha=0.5, color='gray', label='Wind Speed Histogram')
+        plt.plot(ws_range, p, label='Weibull PDF', color='blue')
+        plt.hist(ts_at_height[f"ws_pl_{self.height}m"], bins=len(ws_range), density=True, alpha=0.5, color='gray', label='Wind Speed Histogram')
         plt.title('Weibull Probability Density Function')
         plt.xlabel('Wind Speed (m/s)')
         plt.ylabel('Probability Density')
@@ -469,34 +471,6 @@ class weibull(object):
 
         return
 
-
-# def obtain_wind_rose(wd, x, y, height, wd_ts_f, n_sector=12):
-
-#     inter = wind_interpolation(wd)
-
-#     ts = inter.direction_interpolator(x, y)
-
-#     ts_at_height = [np.interp(height, [wd_ts_f.height_1, wd_ts_f.height_2], [ts['wind_direction_10m'].iloc[i], ts['wind_direction_100m'].iloc[i]]) for i in range(len(ts))]
-
-#     ts[f"wd_at_{height}m"] = ts_at_height
-
-#     # Divide the wind direction into n_sector bins
-#     sector_size = 360 / n_sector
-#     bins = np.arange(0, 360 + sector_size, sector_size)
-#     labels = np.arange(1, n_sector+1)
-
-#     # Assign each wind direction to a sector
-#     ts['sector'] = pd.cut(ts_at_height, bins=bins, labels=labels, right=False)
-
-#     probability = ts_at_height['sector'].value_counts(normalize=True).sort_index()
-
-#     ax = plt.subplot(projection='polar')
-#     ax.set_theta_zero_location('N')
-#     ax.set_theta_direction(-1)  
-#     ax.bar(np.radians(probability.index * sector_size), probability.values, width=np.radians(sector_size), alpha=0.5, color='blue', edgecolor='black')
-#     ax.xaxis.set_ticks(np.arange(0, 2*np.pi, np.pi/(6)))
-
-#     return ts_at_height
 
 def obtain_wind_rose(wd, x, y, height, wd_ts_f, n_sector=12):
 
@@ -575,22 +549,45 @@ class turbine(object):
         Compute the Annual Energy Production (AEP) for a given turbine and location.
         """
         
-        inter = wind_interpolation(wind_data)
+        # inter = wind_interpolation(wind_data)
 
-        ts = inter.speed_interpolator(lat, lon)
+        # ts = inter.speed_interpolator(lat, lon)
 
         turbine_ = getattr(self, turbine)
 
-        ts = compute_wind_speed_power_law(ts, turbine_['hub_height'], ts_object)
+        # ts = compute_wind_speed_power_law(ts, turbine_['hub_height'], ts_object)
 
-        print(ts.head())
+        for location in wind_data.keys():
 
-        ts.set_index('time', inplace=True)
-        ts_year = ts.loc[f'{year}']
+            wind_data[location].set_index('time', inplace=True)
+            wind_data[location] = wind_data[location].loc[f'{year}']
 
-        return ts_year
+        weibull_obj = weibull(lat, lon, turbine_['hub_height'], wind_data, ts_object)
+
+        u_weibull = weibull_obj.get_pdf(u_max=turbine_['power_curve']['Wind Speed [m/s]'].max(), u_min=turbine_['power_curve']['Wind Speed [m/s]'].min())
+
+        # Round wind speeds to the nearest integer
+        turbine_['power_curve']['Wind Speed [m/s]'] = turbine_['power_curve']['Wind Speed [m/s]'].round()
+
+        # Group by the rounded wind speeds and calculate the mean power
+        grouped_df = turbine_['power_curve'].groupby('Wind Speed [m/s]')['Power [kW]'].mean().reset_index()
+
+        # Create a range of wind speeds from the minimum to the maximum in the original data
+        wind_speed_range = np.arange(int(turbine_['power_curve']['Wind Speed [m/s]'].min()), 
+                         int(turbine_['power_curve']['Wind Speed [m/s]'].max()) + 1)
+
+        # Interpolate the power values for the full range of wind speeds
+        interpolated_df = pd.DataFrame({'Wind Speed [m/s]': wind_speed_range})
+        interpolated_df = interpolated_df.merge(grouped_df, on='Wind Speed [m/s]', how='left')
+        interpolated_df['Power [kW]'] = interpolated_df['Power [kW]'].interpolate()
+
+        print("Sum Weibull:", sum(u_weibull))
+        print("Weibull P:", u_weibull)
+        print("Power curve:", turbine_['power_curve']['Power [kW]'])
+
+        AEP = 8760 * np.sum(u_weibull * interpolated_df['Power [kW]'][:-1])
+
+        return AEP
             
-
-   
         
 
