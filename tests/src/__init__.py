@@ -534,3 +534,63 @@ def obtain_wind_rose(wd, x, y, height, wd_ts_f, n_sector=12):
     ax.xaxis.set_ticks(np.arange(0, 2*np.pi, np.pi/(6)))
 
     return ts_at_height
+
+def load_turbines(filepath):
+
+    filepath_turb = filepath.parent / 'inputs'
+
+    # Open the .nc file using xarray
+    directory = Path(filepath_turb)
+
+    # Initialize an empty dictionary to store DataFrames
+    turbines = {}
+
+    # Iterate through all CSV files in the directory
+    for csv_file in directory.glob("*.csv"):
+        # Load the CSV file into a DataFrame
+        df = pd.read_csv(csv_file)
+        # Use the file name (without extension) as the key
+        file_name = csv_file.stem
+        turbines[file_name] = df
+
+    return turbines
+
+
+class turbine(object):
+    def __init__(self, turbine_data, hub_heights):
+
+        self.turbine_data = turbine_data
+        self.hub_heights = hub_heights
+
+        for i, key in enumerate(turbine_data.keys()):
+
+            turbine_ = {}
+            turbine_['hub_height'] = self.hub_heights[i]
+            turbine_['power_curve'] = self.turbine_data[key]
+            
+            setattr(self, key, turbine_.copy())
+
+        def compute_AEP(self, turbine, lat, lon, wind_data, year, ts_object):
+            """
+            Compute the Annual Energy Production (AEP) for a given turbine and location.
+            """
+            
+            inter = wind_interpolation(wind_data)
+
+            ts = inter.speed_interpolator(lat, lon)
+
+            turbine_ = getattr(self, turbine, None)
+
+            ts = compute_wind_speed_power_law(ts, turbine_['hub_height'], ts_object)
+
+            ts.set_index('time', inplace=True)
+            ts_year = ts.loc[f'{year}']
+
+            return ts_year
+            
+
+
+
+            
+        
+
