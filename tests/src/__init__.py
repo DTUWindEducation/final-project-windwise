@@ -395,6 +395,36 @@ def compute_wind_speed_power_law(wind_data, height, wd_ts_f):
 
     return wind_data
 
+def plot_wind_speed_year(wind_data, wd_ts_f, year, lat, lon, height):
+
+    inter = wind_interpolation(wind_data)
+
+    ts = inter.speed_interpolator(lat, lon)
+
+    ts_at_height = compute_wind_speed_power_law(ts, height, wd_ts_f)
+
+    ts_at_height['time'] = pd.to_datetime(ts_at_height['time'])
+    ts_at_height.set_index('time', inplace=True)
+    ts_at_height = ts_at_height.loc[f'{year}']
+
+    weekly_mean = ts_at_height[f'ws_pl_{height}m'].resample('W').mean()
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(weekly_mean.index, weekly_mean)
+
+    # Format the x-axis to show months
+    plt.gca().xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
+    plt.gca().xaxis.set_major_locator(plt.matplotlib.dates.MonthLocator())
+
+    # Add labels and title
+    plt.xlabel('Month')
+    plt.ylabel('Wind Speed [m/s]')
+    plt.title(f'Wind Speed at {height}m at {lat}, {lon} for {year}')
+    plt.grid(True)
+    plt.legend()
+    plt.savefig(f'wind_speed_{lat}_{lon}_{height}m_{year}.png')
+
+    return ts_at_height
 
 def gamma_func(k, mu_1, mu_2):
 
@@ -506,6 +536,7 @@ def obtain_wind_rose(wd, x, y, height, wd_ts_f, n_sector=12):
     ax.set_theta_direction(-1)  
     ax.bar(np.radians(np.arange(1, 361, 360/nd)), sectors["prob"], width=np.pi/(nd/2))
     ax.xaxis.set_ticks(np.arange(0, 2*np.pi, np.pi/(6)))
+    plt.savefig('windrose.png')
 
     return ts_at_height
 
@@ -567,14 +598,19 @@ class turbine(object):
         u_weibull = weibull_obj.get_pdf(u_max=turbine_['power_curve']['Wind Speed [m/s]'].max(), u_min=turbine_['power_curve']['Wind Speed [m/s]'].min())
 
         # Round wind speeds to the nearest integer
-        turbine_['power_curve']['Wind Speed [m/s]'] = turbine_['power_curve']['Wind Speed [m/s]'].round()
+
+        turbine_r = turbine_.copy()
+
+        turbine_r['power_curve'] = turbine_r['power_curve'].copy()
+
+        turbine_r['power_curve']['Wind Speed [m/s]'] = turbine_r['power_curve']['Wind Speed [m/s]'].round()
 
         # Group by the rounded wind speeds and calculate the mean power
-        grouped_df = turbine_['power_curve'].groupby('Wind Speed [m/s]')['Power [kW]'].mean().reset_index()
+        grouped_df = turbine_r['power_curve'].groupby('Wind Speed [m/s]')['Power [kW]'].mean().reset_index()
 
         # Create a range of wind speeds from the minimum to the maximum in the original data
-        wind_speed_range = np.arange(int(turbine_['power_curve']['Wind Speed [m/s]'].min()), 
-                         int(turbine_['power_curve']['Wind Speed [m/s]'].max()) + 1)
+        wind_speed_range = np.arange(int(turbine_r['power_curve']['Wind Speed [m/s]'].min()), 
+                         int(turbine_r['power_curve']['Wind Speed [m/s]'].max()) + 1)
 
         # Interpolate the power values for the full range of wind speeds
         interpolated_df = pd.DataFrame({'Wind Speed [m/s]': wind_speed_range})
@@ -588,6 +624,19 @@ class turbine(object):
         AEP = 8760 * np.sum(u_weibull * interpolated_df['Power [kW]'][:-1])
 
         return AEP
-            
+    
+    def plot_power_curve(self, turbine):
+
+        turbine_ = getattr(self, turbine)
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(turbine_['power_curve']['Wind Speed [m/s]'], turbine_['power_curve']['Power [kW]'], marker='o', label='Power Curve')
+        plt.title(f'Power Curve for {turbine}')
+        plt.xlabel('Wind Speed [m/s]')
+        plt.ylabel('Power [kW]')
+        plt.grid(True)
+        plt.legend()
+        plt.savefig(f'power_curve_{turbine}.png')
+                    
         
 

@@ -28,6 +28,7 @@ for label in wind_data.keys():
     wind_data_ts[label] = wd_ts.compute_wdir_time_series(label)
 
 
+
 #%% Obtaining weibull parameters for any location and height 
 
 weibull_obj = src.weibull(55.65, 8, 60, wind_data_ts, wd_ts)
@@ -46,5 +47,15 @@ turbine_obj  = src.turbine(turbines, hub_heights)
 
 test = turbine_obj.compute_AEP("NREL_Reference_5MW_126", 55.65, 8, wind_data_ts, 1998, wd_ts)
 
+
+# %% Extra function: plot power curve
+
+turbine_obj = src.turbine(turbines, hub_heights)
+
+test = turbine_obj.plot_power_curve("NREL_Reference_5MW_126")  
+
+# %% Extra funtion: plot wind resource time series of a given year, location and height
+
+src.plot_wind_speed_year(wind_data, wd_ts, 1998, 55.65, 8, 60)
 
 # %%
