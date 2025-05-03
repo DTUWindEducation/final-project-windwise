@@ -6,6 +6,9 @@ import pandas as pd
 # Directory of the current file
 directory = Path(__file__).resolve().parent
 
+# Hub heights
+hub_heights = [90, 150] # Write them in the same order as the turbines files are foun in the directoy
+
 # Loading wind data for all 4 locations for all years available
 wind_data = src.get_data(directory)
 
@@ -27,12 +30,21 @@ for label in wind_data.keys():
 
 #%% Obtaining weibull parameters for any location and height 
 
-weibull_obj = src.weibull(8, 55.65, 60, wind_data_ts, wd_ts)
+weibull_obj = src.weibull(55.65, 8, 60, wind_data_ts, wd_ts)
 
 A, k = weibull_obj.obtain_parameters()
 
 u_weibull = weibull_obj.plot_pdf()
 
-wind_rose = src.obtain_wind_rose(wind_data_ts, 8, 55.65, 60, wd_ts, 120)
+wind_rose = src.obtain_wind_rose(wind_data_ts, 55.65, 8, 60, wd_ts, 12)
+
+# %% Turbines
+
+turbines = src.load_turbines(directory)
+
+turbine_obj  = src.turbine(turbines, hub_heights)
+
+test = turbine_obj.compute_AEP("NREL_Reference_5MW_126", 55.65, 8, wind_data_ts, 1998, wd_ts)
+
 
 # %%
