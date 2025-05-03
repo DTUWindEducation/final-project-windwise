@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Information on the package
+[project]
+name = "Wind_Re"
+description = "Powerful package to carry out wind resource assesment based on wind components for four locations. Major functionalities are computing AEP, plotting windrose and Weibull curve"
+version = "0.1"
+authors = [
+    { name = "Alexandre del Barco", email = "s232518@dtu.dk"},
+    { name = "Javier Andueza", email = "s232514@dtu.dk"}
+]
+dependencies = [
+    "xarray",
+    "netCDF4",
+    "h5netcdf",
+    "scipy",
+    "pandas",
+    "matplotlib",
+    "numpy"
+]
+
+[project.urls]
+Repository = "https://github.com/DTUWindEducation/final-project-windwise.git"
