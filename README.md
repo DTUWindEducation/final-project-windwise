@@ -33,7 +33,7 @@ A brief guide on how to install the package and run the demo is mentioned here_
 
 # Package architecture
 
-![figure](Code_Diagram.png)
+![figure](inputs/Code_Diagram.png)
 
 ### Architecture Overview
 
