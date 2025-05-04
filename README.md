@@ -1,4 +1,4 @@
-README
+# README
 
 Team: WindWise
 
@@ -12,12 +12,63 @@ These additional features include the computation of the wind speed and time ser
 
 A step by step guide of the installation, as well as description and usage of the functions and classes is provided below.
 
+# Installation instructions
+
+A brief guide on how to install the package and run the demo is mentioned here_
+
+1. Open the repository.
+2. Install the Wind_Re package by means of the pyproject.toml file provided in this very same repository.
+
+        pip install -e .
+
+3. Confirm installation of package and dependencies.
+
+        pip list
+
+    Look for "Wind_Re" and "xarray", "netCDF4", "h5netcdf", "scipy", "pandas", "matplotlib", "numpy"
+
+4. Main contains a demonstration of the package, run main.py. It should print the weibull parameters for the conditions selected, as well as the AEP for the same conditions, as well as saving 4 figures in the outputs folder.
+
+5. Explore the code!
+
+# Package architecture
+
 ![figure](Code_Diagram.png)
 
+### Architecture Overview
 
-# QUICK START GUIDE 
+The architecture is divided into two main workflows: **Wind Data Processing** and **Turbine Data Processing**. These workflows are integrated to compute the Annual Energy Production (AEP) for wind turbines.
 
-*******************INCLUDE INSTALLATION********************
+#### 1. Wind Data Processing
+
+- **Data Input**: Begins with NetCDF files containing wind data.
+- **Data Retrieval**: Extracts wind data components (u, v) and organizes them into time series.
+- **Time Series Processing**: Computes wind direction and speed time series.
+- **Wind Interpolation**: Interpolates wind speed and direction data to specific coordinates.
+- **Wind Speed Calculation**: Computes wind speed at a specific height using the power law.
+- **Weibull Distribution Analysis**: Analyzes the wind speed data to fit a Weibull distribution, obtaining parameters and plotting the PDF.
+
+#### 2. Turbine Data Processing
+
+- **Data Input**: Begins with turbine data files containing power curve information.
+- **Turbine Data Loading**: Loads turbine-specific data, including the power curve.
+- **AEP Computation**: Integrates wind time series data and turbine data to compute the Annual Energy Production (AEP) in kWh.
+- **Power Curve Plotting**: Plots the power curve of the turbine for visualization.
+
+### Integration Points
+
+- The wind data processing and turbine data processing workflows converge at the AEP computation stage, where wind time series data and turbine-specific data are used to calculate the energy production.
+- Wind interpolation and Weibull distribution analysis provide essential inputs for accurate AEP computation.
+
+### Outputs
+
+- **Weibull Parameters**: Parameters of the Weibull distribution (A, k).
+- **AEP in kWh**: Annual Energy Production in kilowatt-hours.
+- **Visualizations**: Plots of the Weibull PDF and turbine power curve.
+
+### Summary
+
+The architecture is designed to systematically process wind data and turbine data, integrating them to compute the Annual Energy Production (AEP) for wind turbines. It ensures accurate and efficient computation by leveraging wind interpolation and Weibull distribution analysis, providing both numerical outputs and visualizations for better understanding and validation.
 
 # Functions and clasess descriptions
 
@@ -60,9 +111,9 @@ Given the path *file_path* to the .csv files containing the wind turbines data, 
 
 ## Classess
 
-### time_series(elf, wind_data, u_1, v_1, height_1, u_2, v_2, height_2)
+### time_series(self, wind_data, u_1, v_1, height_1, u_2, v_2, height_2)
 
-This class is used to transform from the wind components u and v to wind speed and wind direction. The inputs are the dictionary containing the timeseries for each of the locations, as well as the name of the column names containing the components, and the heights at which they are measured.
+This class is used to transform from the wind components u and v to wind speed and wind direction. The inputs are the dictionary *wind_data* containing the timeseries for each of the locations, as well as the name of the column names, *u_1*, *v_1*, *u_2*, *v_2* containing the components, and the heights at which they are measured, *height_1* and *height_2*.
 
 **compute_ws_time_series(self, cords)**
 
@@ -121,3 +172,12 @@ For the specified *turbine_name*, *lat*, *lon*, and *year*, it returns the AEP u
 [EXTRA FUNCTION]
 
 Plots the selected *turbine_name* power curve and saves it in the output folder under the name *ower_curve_{turbine}.png*.
+
+# Collaboration and git work flow
+
+Our team is made of only two members, therefore the team collaboraion and coordination has been easy and simple. Most of the work on this assignment has been made together, meeting to work on it at the same time. Every time we made changes on the code, we created them in a branch with the name of the person who was in charge of coding that day, although it was both of us discussing the next steps. When the changes were verified, they were merged into branch through a pull request.
+
+For some days, we worked separately, trying to make them match with times in which the other member was not working, in order to avoid merge conflicts, once again, in a branch with our respective names. When changes were ready to merge into the main branch, a pull request was opened for the other person to review and accept when they were available.
+
+We have tried to make the commit comments as descrptive and clear as possible, so that tracking last changes could be easily done. This was useful enough to see what the other person had been working on, as well as go back and check some files we had deleted.
+

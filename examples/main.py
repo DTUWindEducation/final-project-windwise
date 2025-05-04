@@ -3,7 +3,7 @@ import Wind_Re as wr
 from pathlib import Path
 import pandas as pd
 
-#%% DATA INPUTS
+# DATA INPUTS
 
 # Directory of the current file
 directory = Path(__file__).resolve().parent
@@ -18,13 +18,14 @@ latitude = 55.65 # Options: 55.5-55.75
 longitude = 7.98 # Options: 7.75-8
 height = 72 # Options: any positive number
 
-#%% 1. Load and parse multiple provided netCDF files
+##############################################################################
+#1. Load and parse multiple provided netCDF files
 
 # Obtain dictionary with u,v time series data for the four provided locations
 wind_data = wr.get_data(directory)
 
-
-#%% 2. Compute wind speed and wind direction time series at 10 m and 100 m heights for the four provided locations
+##############################################################################
+# 2. Compute wind speed and wind direction time series at 10 m and 100 m heights for the four provided locations
 
 # Dictionary to save the time series dataframes
 wind_data_ts = {}
@@ -42,8 +43,8 @@ for label in wind_data.keys():
     wind_data_ts[label] = wind_data_time_series_object.compute_ws_time_series(label)
     wind_data_ts[label] = wind_data_time_series_object.compute_wdir_time_series(label)
 
-
-#%% 3. Compute wind speed and wind direction time series at 10 m and 100 m heights for a given location inside the box bounded by the four locations,
+##############################################################################
+# 3. Compute wind speed and wind direction time series at 10 m and 100 m heights for a given location inside the box bounded by the four locations,
 #  such as the Horns Rev 1 site, using interpolation.
 
 # Create the object for wind interpolation, input is the wind speed and direction time series
@@ -55,7 +56,8 @@ wind_speed_at_location = wind_data_interpolation_object.speed_interpolator(latit
 # Using the coordinates stated above, compute the wind direction time series
 wind_direction_at_location = wind_data_interpolation_object.direction_interpolator(latitude, longitude)
 
-#%% 4. Compute wind speed time series at height z for the four provided locations using power law profile.
+##############################################################################
+# 4. Compute wind speed time series at height z for the four provided locations using power law profile.
 
 # Iterate over all locations
 for label in wind_data_ts.keys():
@@ -63,8 +65,8 @@ for label in wind_data_ts.keys():
     # Add a column in each DataFrame for the wind speed at the specified height
     wind_data_ts[label] = wr.compute_wind_speed_power_law(wind_data=wind_data_ts[label], height=height, wd_ts_f=wind_data_time_series_object)
 
-
-#%% 5. Fit Weibull distribution for wind speed at a given location (inside the box) and a given height.
+##############################################################################
+# 5. Fit Weibull distribution for wind speed at a given location (inside the box) and a given height.
 
 # Create the object for the weibull distribution, inpute is the coordinates, height, wind time series and object
 weibull_object = wr.weibull(x=latitude, y=longitude, height=height, wind_data_processed=wind_data_ts, wd_ts_f=wind_data_time_series_object)
@@ -77,19 +79,20 @@ print(f"Weibull parameters for {latitude}, {longitude}, {height} m: A = {A}, k =
 # Obtain weibull curve values
 u_weibull = weibull_object.get_pdf()
 
-
-#%% 6. Plot wind speed distribution (histogram vs. fitted Weibull distribution) at a given location (inside the box) and a given height.
+##############################################################################
+# 6. Plot wind speed distribution (histogram vs. fitted Weibull distribution) at a given location (inside the box) and a given height.
 
 # Plot the weibull PDF and histogram of the wind speed time series, saves figure in output directory
 weibull_object.plot_pdf()
 
-#%% 7. Plot wind rose diagram that shows the frequencies of different wind direction at a given location (inside the box) and a given height.
+##############################################################################
+# 7. Plot wind rose diagram that shows the frequencies of different wind direction at a given location (inside the box) and a given height.
 
 # Plot the wind rose diagram, saves figure in output directory. Default number of bins is 12
 wr.obtain_wind_rose(wd = wind_data_ts, x=latitude, y=longitude, height=height, wd_ts_f=wind_data_time_series_object, n_sector=12)
 
-
-#%% 8. Compute AEP of a specifed wind turbine (NREL 5 MW or NREL 15 MW) at a given location inside the box for a given year in the period
+##############################################################################
+# 8. Compute AEP of a specifed wind turbine (NREL 5 MW or NREL 15 MW) at a given location inside the box for a given year in the period
 #  we have provided the wind data.
 
 # Load turbine files from input directory
@@ -103,12 +106,13 @@ AEP = turbines_object.compute_AEP(turbine_name=turbine_name, lat=latitude, lon=l
 
 print(f"AEP for {turbine_name} at {latitude}, {longitude}, {height} m in {year}: {AEP/1e3} MWh")
 
-# %% Extra function: plot power curve
+##############################################################################
+# Extra function: plot power curve
 
 # Plot the power curve of the specified turbine, saves figure in output directory
 turbines_object.plot_power_curve(turbine_name=turbine_name)  
 
-# %% Extra funtion: plot wind resource time series of a given year, location and height
+##############################################################################
+# Extra funtion: plot wind resource time series of a given year, location and height
 
 wr.plot_wind_speed_year(wind_data=wind_data, wd_ts_f=wind_data_time_series_object, year=year, lat=latitude, lon=longitude, height=height)
-# %%
