@@ -28,7 +28,7 @@ def load_netcdf_to_dataframe(file_path):
     pd.DataFrame: DataFrame containing the data from the NetCDF file.
     """
     # Open the .nc file using xarray
-    nc_data = xr.open_dataset(file_path)
+    nc_data = xr.open_dataset(file_path, decode_timedelta=True)
 
     # Convert the dataset to a Pandas DataFrame
     df = nc_data.to_dataframe()
@@ -467,7 +467,6 @@ def plot_wind_speed_year(wind_data, wd_ts_f, year, lat, lon, height):
     plt.ylabel('Wind Speed [m/s]')
     plt.title(f'Wind Speed at {height}m at {lat}, {lon} for {year}')
     plt.grid(True)
-    plt.legend()
     plt.savefig(f"{outputs_dir}/wind_speed_{lat}_{lon}_{height}m_{year}.png")
 
     return

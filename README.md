@@ -12,6 +12,8 @@ These additional features include the computation of the wind speed and time ser
 
 A step by step guide of the installation, as well as description and usage of the functions and classes is provided below.
 
+![figure](Code_Diagram.png)
+
 
 # QUICK START GUIDE 
 
@@ -115,5 +117,7 @@ This class is used to obtain the AEP and the information related with the wind t
 For the specified *turbine_name*, *lat*, *lon*, and *year*, it returns the AEP under those conditions. It first uses the *weibull* object to obtain the weibull distribution for the specified conditions, to then use the adjusted power curve to obtain the AEP in kWh.
 
 **plot_power_curve(self, turbine_name)**
+
+[EXTRA FUNCTION]
 
 Plots the selected *turbine_name* power curve and saves it in the output folder under the name *ower_curve_{turbine}.png*.
