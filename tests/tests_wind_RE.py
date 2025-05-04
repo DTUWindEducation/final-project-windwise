@@ -1,9 +1,11 @@
 from pathlib import Path
 import pandas as pd
 import os
-import src as Wind_Re
+import Wind_Re
 
 DATA_DIR = Path(__file__).resolve().parent
+
+outputs_dir = Path(__file__).resolve().parent.parent / 'outputs'
 
 def test_load_and_parse():
 
@@ -176,7 +178,7 @@ def test_weibull_distribution_plot():
     height = 65
     latitude = 55.65
     longitude = 7.9
-    expected_filename = "weibull_pdf.png"
+    expected_filename = outputs_dir / "weibull_pdf.png"
 
     # When
     wind_data = Wind_Re.get_data(path_to_nc_files)
@@ -199,7 +201,7 @@ def test_weibull_distribution_plot():
 
     # Then
     # Check that a figure is created
-    assert os.path.exists(expected_filename)
+    assert expected_filename.exists(), f"Expected file {expected_filename} was not found."
 
 def test_wind_rose():
 
@@ -210,7 +212,7 @@ def test_wind_rose():
     height = 65
     latitude = 55.65
     longitude = 7.9
-    expected_filename = "windrose.png"
+    expected_filename = outputs_dir / "windrose.png"
 
     # When
     wind_data = Wind_Re.get_data(path_to_nc_files)
@@ -232,8 +234,7 @@ def test_wind_rose():
 
     # Then
     # Check that a figure is sved
-    assert os.path.exists(expected_filename)
-
+    assert expected_filename.exists(), f"Expected file {expected_filename} was not found."
 
 def test_AEP_calculation():
 
