@@ -1,3 +1,9 @@
+# pylint: disable=C0103
+# pylint: disable=R0913
+# pylint: disable=R0914
+# pylint: disable=R0917
+# pylint: disable=C0301
+
 from pathlib import Path
 import xarray as xr
 import pandas as pd
@@ -22,7 +28,7 @@ def load_netcdf_to_dataframe(file_path):
     pd.DataFrame: DataFrame containing the data from the NetCDF file.
     """
     # Open the .nc file using xarray
-    nc_data = xr.open_dataset(file_path)
+    nc_data = xr.open_dataset(file_path, decode_timedelta=True)
 
     # Convert the dataset to a Pandas DataFrame
     df = nc_data.to_dataframe()
@@ -95,8 +101,9 @@ def get_data(directory):
             lat, lon = location.latitude, location.longitude
             location_key = f"Location_{lat}_{lon}"
             location_df = df[(df['latitude'] == lat) & (df['longitude'] == lon)]
-            wind_data[(lat, lon)] = pd.concat([wind_data[(lat, lon)], location_df], ignore_index=True)
-    
+            wind_data[(lat, lon)] = pd.concat([wind_data[(lat, lon)], 
+                                               location_df], ignore_index=True)
+            
     return wind_data
 
 
@@ -104,7 +111,7 @@ class time_series(object):
 
     def __init__(self, wind_data, u_1, v_1, height_1, u_2, v_2, height_2):
         """
-        Initialize the wind_interpolation class.
+        Initialize the time_series class.
 
         Parameters:
         wind_data (dict): Dictionary containing wind data for different locations.
@@ -275,6 +282,7 @@ class wind_interpolation(object):
         return location
 
     def direction_interpolator(self, x_coord, y_coord):
+
         """
         Interpolate wind direction at the point (x, y) within the square.
         
@@ -385,53 +393,99 @@ class wind_interpolation(object):
 def compute_wind_speed_power_law(wind_data, height, wd_ts_f):
 
     """
+    Compute the wind speed at a given height using power law method.
 
+    Parameters:
+    wind_data (pd.DataFrame): DataFrame containing wind speed data at two heights.
+    height (int): The height (in meters) at which to compute the wind speed.
+    wd_ts_f (object): An object containing attributes `height_1` and `height_2`, 
+                      representing the heights (in meters) of the wind speed measurements.
+
+    Returns:
+    pd.DataFrame: The input DataFrame with two additional columns:
+                  - 'alpha': The power law exponent.
+                  - 'ws_pl_{height}m': The computed wind speed at the specified height.
     """
 
+    # Extract wind speed at bith heights
     U1 = wind_data["wind_speed_10m"]
     U2 = wind_data["wind_speed_100m"]
-    z = height
+
+    # Define the target height and the reference heights
+    z = height # Target heigh
     z1 = wd_ts_f.height_1
     z2 = wd_ts_f.height_2
     
+    # Compute the power law exponent (alpha)
     wind_data['alpha'] = (np.log(U2/U1))/(np.log(z2/z1))
 
+    # Compute the wind speed at the specified height using the power law formula
     wind_data[f'ws_pl_{height}m'] = U2*((z/z2)**wind_data['alpha'])
 
     return wind_data
 
 def plot_wind_speed_year(wind_data, wd_ts_f, year, lat, lon, height):
 
+    """
+    Plot the weekly mean wind speed at a given height for a specific year and location.
+
+    Parameters:
+    wind_data (dict): Dictionary containing wind data for different locations.
+    wd_ts_f (object): An object containing attributes for wind data time series.
+    year (int): The year for which the wind speed data is to be plotted.
+    lat (float): Latitude of the location at which the wind speed is to be plotted..
+    lon (float): Longitude of the location at which the wind speed is to be plotted..
+    height (int): The height (in meters) at which the wind speed is to be plotted.
+
+    Returns:
+    None: The function saves the plot as a PNG file in the outputs directory.
+    """
+
+    # Initialize the wind interpolation object with the wind data
     inter = wind_interpolation(wind_data)
 
+    # Interpolate wind speed at the specified latitude and longitude
     ts = inter.speed_interpolator(lat, lon)
 
+    # Compute wind speed at the specified height using the power law
     ts_at_height = compute_wind_speed_power_law(ts, height, wd_ts_f)
 
+    # Filter the data for the specified year
     ts_at_height['time'] = pd.to_datetime(ts_at_height['time'])
     ts_at_height.set_index('time', inplace=True)
     ts_at_height = ts_at_height.loc[f'{year}']
 
+    # Compute the weekly mean wind speed at the specified height
     weekly_mean = ts_at_height[f'ws_pl_{height}m'].resample('W').mean()
 
+    # Plot the weekly mean wind speed
     plt.figure(figsize=(12, 6))
     plt.plot(weekly_mean.index, weekly_mean)
-
-    # Format the x-axis to show months
     plt.gca().xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%b'))
     plt.gca().xaxis.set_major_locator(plt.matplotlib.dates.MonthLocator())
-
-    # Add labels and title
     plt.xlabel('Month')
     plt.ylabel('Wind Speed [m/s]')
     plt.title(f'Wind Speed at {height}m at {lat}, {lon} for {year}')
     plt.grid(True)
-    plt.legend()
     plt.savefig(f"{outputs_dir}/wind_speed_{lat}_{lon}_{height}m_{year}.png")
 
-    return ts_at_height
+    return
 
 def gamma_func(k, mu_1, mu_2):
+
+    """
+    Compute the difference between the squared mean and the second moment 
+    of a Weibull distribution.
+
+    Parameters:
+    k (float): Shape parameter of the Weibull distribution.
+    mu_1 (float): First moment (mean) of the wind speed data.
+    mu_2 (float): Second moment of the wind speed data.
+
+    Returns:
+    float: The difference between the squared mean and the second moment 
+           of the Weibull distribution.
+    """
 
     return gamma(1+1/k)**2/gamma(1+2/k) - (mu_1**2)/mu_2
 
@@ -439,9 +493,24 @@ def gamma_func(k, mu_1, mu_2):
 class weibull(object):
 
     def __init__(self, x, y, height, wind_data_processed, wd_ts_f):
+
         """
         Initialize the Weibull class.
-        """        
+
+        This constructor initializes the Weibull class with the necessary parameters 
+        to compute Weibull distribution properties for a specific location and height.
+
+        Parameters:
+        x (float): X-coordinate (latitude) of the location.
+        y (float): Y-coordinate (longitude) of the location.
+        height (int): The height (in meters) at which the Weibull distribution is to be computed.
+        wind_data_processed (dict): Dictionary containing processed wind data for different locations.
+        wd_ts_f (object): An object containing attributes for wind data time series.
+
+        Returns:
+        None
+        """   
+
         self.x = x
         self.y = y
         self.height = height
@@ -450,32 +519,61 @@ class weibull(object):
 
     def obtain_parameters(self):
 
-        #obtain time series at the guven location
+        """
+        Obtain the Weibull distribution parameters (scale and shape) for the wind speed 
+        at a given height and location.
+
+        This method computes the scale parameter (A) and shape parameter (k) of the Weibull 
+        distribution by analyzing the wind speed time series at the specified height and location.
+
+        Returns:
+        tuple: A tuple containing:
+            - A (float): The scale parameter of the Weibull distribution.
+            - k (float): The shape parameter of the Weibull distribution.
+        """
+
+        # Obtain time series at the given location
         inter = wind_interpolation(self.wind_data_processed)
 
+        # Interpolate wind speed at the specified latitude and longitude
         ts = inter.speed_interpolator(self.x, self.y)
 
+        # Compute wind speed at the specified height using the power law
         ts_at_height = compute_wind_speed_power_law(ts, self.height, self.wd_ts_f)
 
+        # Compute the first and second moment at the specified height
         fst_moment = np.mean(ts_at_height[f"ws_pl_{self.height}m"])
         snd_moment = np.mean(ts_at_height[f"ws_pl_{self.height}m"]**2)
 
+        # Solve for the shape parameter (k) using the gamma function and the moments
         k = fsolve(gamma_func, 2, args=(fst_moment, snd_moment))
 
+        # Compute the scale parameter (A) using the first moment and the shape parameter
         A = fst_moment/gamma(1+1/k)
 
         return A, k
     
 
     def get_pdf(self, u_max=25, u_min=0):
-        """
 
         """
+        Compute the Weibull probability density function (PDF) for a range of wind speeds.
 
+        Parameters:
+        u_max (int, optional): Maximum wind speed (in m/s) for the PDF range. Default is 25.
+        u_min (int, optional): Minimum wind speed (in m/s) for the PDF range. Default is 0.
+
+        Returns:
+        np.ndarray: An array containing the Weibull PDF values for the specified wind speed range.
+        """
+
+        # Obtain the Weibull parameters (scale A and shape k)
         A, k = self.obtain_parameters()
 
+        # Create a range of wind speeds from u_min to u_max with a step of 1 m/s
         ws_range = np.arange(u_min, u_max, 1)
 
+        # Compute the Weibull PDF using the formula
         pdf = (k / A) * (ws_range / A) ** (k-1) * np.exp(-(ws_range / A)**k)
 
         return pdf
@@ -483,17 +581,36 @@ class weibull(object):
     
     def plot_pdf(self, u_max=25, u_min=0):
 
-        #obtain time series at the guven location
+        """
+        Plot the Weibull probability density function (PDF) and a histogram of wind speeds.
+
+        This method generates a plot of the Weibull PDF for a specified range of wind speeds
+        and overlays it with a histogram of the wind speed data at the specified height and location.
+
+        Parameters:
+        u_max (int, optional): Maximum wind speed (in m/s) for the PDF range. Default is 25.
+        u_min (int, optional): Minimum wind speed (in m/s) for the PDF range. Default is 0.
+
+        Returns:
+        None: The function saves the plot as a PNG file in the outputs directory.
+        """
+
+        # Obtain time series at the given location using wind interpolation
         inter = wind_interpolation(self.wind_data_processed)
 
+        # Interpolate wind speed at the specified latitude and longitude
         ts = inter.speed_interpolator(self.x, self.y)
 
+        # Compute wind speed at the specified height using the power law
         ts_at_height = compute_wind_speed_power_law(ts, self.height, self.wd_ts_f)
 
+        # Create a range of wind speeds from u_min to u_max with a step of 1 m/s
         ws_range = np.arange(u_min, u_max, 1)
 
+        # Compute the Weibull PDF for the specified wind speed range
         p = self.get_pdf(u_max=u_max, u_min=u_min)
 
+        # Plot the Weibull PDF and histogram of wind speeds
         plt.figure(figsize=(10, 6))
         plt.plot(ws_range, p, label='Weibull PDF', color='blue')
         plt.hist(ts_at_height[f"ws_pl_{self.height}m"], bins=len(ws_range), density=True, alpha=0.5, color='gray', label='Wind Speed Histogram')
@@ -509,11 +626,32 @@ class weibull(object):
 
 def obtain_wind_rose(wd, x, y, height, wd_ts_f, n_sector=12):
 
+    """
+    Generate a wind rose plot for a given location and height.
+
+    This function calculates the wind direction at a specified height and location,
+    divides the wind directions into sectors, and generates a wind rose plot.
+
+    Parameters:
+    wd (dict): Dictionary containing wind direction data for different locations.
+    x (float): X-coordinate (latitude) of the location.
+    y (float): Y-coordinate (longitude) of the location.
+    height (int): The height (in meters) at which the wind rose is to be generated.
+    wd_ts_f (object): An object containing attributes `height_1` and `height_2`, 
+                      representing the heights (in meters) of the wind direction measurements.
+    n_sector (int, optional): Number of sectors to divide the wind direction into. Default is 12.
+
+    Returns:
+    None: The function saves the plot as a PNG file in the outputs directory.
+    """
+
+    # Initialize the wind interpolation object with the wind direction data
     inter = wind_interpolation(wd)
 
+    # Interpolate wind direction at the specified latitude and longitude
     ts = inter.direction_interpolator(x, y)
 
-    # ts_at_height = [np.interp(height, [wd_ts_f.height_1, wd_ts_f.height_2], [ts['wind_direction_10m'].iloc[i], ts['wind_direction_100m'].iloc[i]]) for i in range(len(ts))]
+    # Compute wind direction at the specified height using linear interpolation
     ts_at_height = (ts[f"wind_direction_{wd_ts_f.height_2}m"] - ts[f"wind_direction_{wd_ts_f.height_1}m"])/(wd_ts_f.height_2 - wd_ts_f.height_1) * (height - wd_ts_f.height_1) + ts["wind_direction_10m"]
 
     ts[f"wd_at_{height}m"] = ts_at_height
@@ -530,23 +668,46 @@ def obtain_wind_rose(wd, x, y, height, wd_ts_f, n_sector=12):
         sectors[f"Sector_{i}"] = pd.DataFrame(columns=["wd"])
         sectors["prob"] = []
 
+        # Filter wind directions that fall within the current sector
         sectors[f"Sector_{i}"] = ts_at_height_series[(ts_at_height_series > (i-1)*360/nd) & (ts_at_height_series <= i*360/nd)]
 
+    # Create a new figure for the wind rose plot
     plt.figure(figsize=(10, 6))
     plt.title(f"Wind Rose at {height}m", pad=20)
+
+    # Compute the probability for each sector
     sectors["prob"] = [len(sectors[f"Sector_{i}"])/len(ts_at_height) for i in range(1, nd+1)]
     ax = plt.subplot(projection='polar')
 
+    # Set the zero location to North and the direction to clockwise
     ax.set_theta_zero_location('N')
     ax.set_theta_direction(-1)  
+
+    # Plot the wind rose as a bar chart
     ax.bar(np.radians(np.arange(1, 361, 360/nd)), sectors["prob"], width=np.pi/(nd/2))
     ax.xaxis.set_ticks(np.arange(0, 2*np.pi, np.pi/(6)))
     plt.savefig(f"{outputs_dir}/windrose.png")
 
-    return ts_at_height
+    return
 
 def load_turbines(filepath):
 
+    """
+    Load turbine data from CSV files in the 'inputs' directory.
+
+    This function reads all CSV files in the 'inputs' directory located relative to the given filepath
+    and stores the data in a dictionary, where the keys are the file names (without extensions) and 
+    the values are Pandas DataFrames containing the turbine data.
+
+    Parameters:
+    filepath (Path): Path to a file or directory. The function uses this to locate the 'inputs' directory.
+
+    Returns:
+    dict: A dictionary where keys are file names (without extensions) and values are Pandas DataFrames 
+          containing the turbine data.
+    """
+
+    # Set the path to the 'inputs' directory relative to the given filepath
     filepath_turb = filepath.parent / 'inputs'
 
     # Open the .nc file using xarray
@@ -569,37 +730,72 @@ def load_turbines(filepath):
 class turbine(object):
     def __init__(self, turbine_data, hub_heights):
 
+        """
+        Initialize the turbine class.
+
+        This constructor initializes the turbine class by associating turbine data and hub heights 
+        with turbine objects. Each turbine object is created as an attribute of the class, 
+        containing its hub height and power curve.
+
+        Parameters:
+        turbine_data (dict): A dictionary where keys are turbine names and values are Pandas DataFrames 
+                            containing the power curve data for each turbine.
+        hub_heights (list): A list of hub heights (in meters) corresponding to each turbine in the turbine_data.
+
+        Returns:
+        None
+        """
+
+        # Store the turbine data and hub heights as class attributes
         self.turbine_data = turbine_data
         self.hub_heights = hub_heights
 
+        # Iterate through each turbine in the turbine_data dictionary 
         for i, key in enumerate(turbine_data.keys()):
 
             turbine_ = {}
+
+            # Assign the hub height for the current turbine
             turbine_['hub_height'] = self.hub_heights[i]
+
+            # Assign the power curve for the current turbine
             turbine_['power_curve'] = self.turbine_data[key]
             
+            # Dynamically create an attribute for the turbine and assign the dictionary to it
             setattr(self, key, turbine_.copy())
 
-    def compute_AEP(self, turbine, lat, lon, wind_data, year, ts_object):
+    def compute_AEP(self, turbine_name, lat, lon, wind_data, year, ts_object):
+
         """
         Compute the Annual Energy Production (AEP) for a given turbine and location.
+
+        This method calculates the AEP by combining the Weibull probability density function (PDF)
+        with the turbine's power curve. It interpolates the power curve to match the wind speed range
+        and integrates the Weibull PDF to estimate the energy production.
+
+        Parameters:
+        turbine_name (str): Name of the turbine for which the AEP is to be computed.
+        lat (float): Latitude of the location.
+        lon (float): Longitude of the location.
+        wind_data (dict): Dictionary containing wind data for different locations.
+        year (int): The year for which the AEP is to be computed.
+        ts_object (object): An object containing attributes for wind data time series.
+
+        Returns:
+        float: The computed Annual Energy Production (AEP) in kilowatt-hours (kWh).
         """
         
-        # inter = wind_interpolation(wind_data)
+        # Retrieve the turbine data for the specified turbine
+        turbine_ = getattr(self, turbine_name)
 
-        # ts = inter.speed_interpolator(lat, lon)
-
-        turbine_ = getattr(self, turbine)
-
-        # ts = compute_wind_speed_power_law(ts, turbine_['hub_height'], ts_object)
-
+        # Filter wind data for the specified year
         for location in wind_data.keys():
 
             wind_data[location].set_index('time', inplace=True)
             wind_data[location] = wind_data[location].loc[f'{year}']
 
+        # Compute the Weibull PDF for the wind speed range
         weibull_obj = weibull(lat, lon, turbine_['hub_height'], wind_data, ts_object)
-
         u_weibull = weibull_obj.get_pdf(u_max=turbine_['power_curve']['Wind Speed [m/s]'].max(), u_min=turbine_['power_curve']['Wind Speed [m/s]'].min())
 
         # Round wind speeds to the nearest integer
@@ -622,26 +818,39 @@ class turbine(object):
         interpolated_df = interpolated_df.merge(grouped_df, on='Wind Speed [m/s]', how='left')
         interpolated_df['Power [kW]'] = interpolated_df['Power [kW]'].interpolate()
 
-        print("Sum Weibull:", sum(u_weibull))
-        print("Weibull P:", u_weibull)
-        print("Power curve:", turbine_['power_curve']['Power [kW]'])
-
         AEP = 8760 * np.sum(u_weibull * interpolated_df['Power [kW]'][:-1])
 
         return AEP
     
-    def plot_power_curve(self, turbine):
+    def plot_power_curve(self, turbine_name):
 
-        turbine_ = getattr(self, turbine)
+        """
+        Plot the power curve for a specified turbine.
 
+        This method generates a plot of the turbine's power curve, showing the relationship 
+        between wind speed and power output. The plot is saved as a PNG file in the outputs directory.
+
+        Parameters:
+        turbine (str): Name of the turbine for which the power curve is to be plotted.
+
+        Returns:
+        None: The function saves the plot as a PNG file in the outputs directory.
+        """
+
+        # Retrieve the turbine data for the specified turbine
+        turbine_ = getattr(self, turbine_name)
+
+        # Plot the power curve (wind speed vs. power output)
         plt.figure(figsize=(10, 6))
         plt.plot(turbine_['power_curve']['Wind Speed [m/s]'], turbine_['power_curve']['Power [kW]'], marker='o', label='Power Curve')
-        plt.title(f'Power Curve for {turbine}')
+        plt.title(f'Power Curve for {turbine_name}')
         plt.xlabel('Wind Speed [m/s]')
         plt.ylabel('Power [kW]')
         plt.grid(True)
         plt.legend()
-        plt.savefig(f"{outputs_dir}/power_curve_{turbine}.png")
+        plt.savefig(f"{outputs_dir}/power_curve_{turbine_name}.png")
+
+        return
                     
         
 
