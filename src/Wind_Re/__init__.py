@@ -6,6 +6,11 @@ from scipy.optimize import fsolve
 from scipy.special import gamma
 import matplotlib.pyplot as plt
 
+# Outputs direcoty
+current_directory = Path(__file__).resolve().parent
+outputs_dir= current_directory.parent.parent / 'outputs'
+
+
 def load_netcdf_to_dataframe(file_path):
     """
     Load a NetCDF file and convert it to a Pandas DataFrame.
@@ -422,7 +427,7 @@ def plot_wind_speed_year(wind_data, wd_ts_f, year, lat, lon, height):
     plt.title(f'Wind Speed at {height}m at {lat}, {lon} for {year}')
     plt.grid(True)
     plt.legend()
-    plt.savefig(f'wind_speed_{lat}_{lon}_{height}m_{year}.png')
+    plt.savefig(f"{outputs_dir}/wind_speed_{lat}_{lon}_{height}m_{year}.png")
 
     return ts_at_height
 
@@ -497,7 +502,7 @@ class weibull(object):
         plt.ylabel('Probability Density')
         plt.grid()
         plt.legend()
-        plt.savefig("weibull_pdf.png")
+        plt.savefig(f"{outputs_dir}/weibull_pdf.png")
 
         return
 
@@ -536,7 +541,7 @@ def obtain_wind_rose(wd, x, y, height, wd_ts_f, n_sector=12):
     ax.set_theta_direction(-1)  
     ax.bar(np.radians(np.arange(1, 361, 360/nd)), sectors["prob"], width=np.pi/(nd/2))
     ax.xaxis.set_ticks(np.arange(0, 2*np.pi, np.pi/(6)))
-    plt.savefig('windrose.png')
+    plt.savefig(f"{outputs_dir}/windrose.png")
 
     return ts_at_height
 
@@ -636,7 +641,7 @@ class turbine(object):
         plt.ylabel('Power [kW]')
         plt.grid(True)
         plt.legend()
-        plt.savefig(f'power_curve_{turbine}.png')
+        plt.savefig(f"{outputs_dir}/power_curve_{turbine}.png")
                     
         
 
